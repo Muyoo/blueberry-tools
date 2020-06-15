@@ -1,0 +1,50 @@
+version: "3.7"
+networks:
+  blueberry:
+
+services:
+  timescaledb:
+     container_name: ${TIMESCALEDB_CONTAINER_NAME}
+     image: timescale/timescaledb:${TIMESCALEDB_VERSION}-pg11
+     volumes:
+       - ${TIMESCALEDB_HOME}/docker-entrypoint-initdb.d/000_install_timescaledb.sh:/docker-entrypoint-initdb.d/000_install_timescaledb.sh
+       - ${TIMESCALEDB_HOME}/data:/var/lib/postgresql/data
+     ports:
+       - ${TIMESCALEDB_PORT}:5432
+     environment:
+       - TZ=Asia/Shanghai
+       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+       - TIMESCALEDB_TELEMETRY=off
+       - CREATE_TIMESCALEDB_EXTENSION=false
+       - TS_TUNE_MEMORY=${TS_TUNE_MEMORY}
+       - TS_TUNE_NUM_CPUS=${TS_TUNE_NUM_CPUS}
+     shm_size: ${DOCKER_SHM_SIZE}
+     networks:
+       - blueberry
+  mysql:
+    container_name: ${MYSQL_CONTAINER_NAME}
+    image: mysql:${MYSQL_VERSION}
+    ports:
+      - ${MYSQL_PORT}:3306
+    volumes:
+      - ${MYSQL_HOME}/my.cnf:/etc/my.cnf
+      - ${MYSQL_HOME}/data:/var/lib/mysql
+      - ${MYSQL_HOME}/log:/var/log/mysql
+    environment:
+      - TZ=Asia/Shanghai
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    networks:
+      - blueberry
+  grafana:
+    container_name: ${GRAFANA_CONTAINER_NAME}
+    image: grafana/grafana:${GRAFANA_VERSION}
+    ports:
+      - ${GRAFANA_PORT}:3000
+    volumes:
+      - ${WORK_HOME}/grafana/plugins:/var/lib/grafana/plugins
+      - ${WORK_HOME}/grafana/grafana.ini:/etc/grafana/grafana.ini
+    networks:
+      - blueberry
+    depends_on:
+      - mysql
+      - timescaledb
