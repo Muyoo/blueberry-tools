@@ -41,8 +41,9 @@ services:
     ports:
       - ${GRAFANA_PORT}:3000
     volumes:
-      - ${WORK_HOME}/grafana/plugins:/var/lib/grafana/plugins
-      - ${WORK_HOME}/grafana/grafana.ini:/etc/grafana/grafana.ini
+      - ${GRAFANA_HOME}:/var/log/grafana
+      - ${GRAFANA_PLUGIN_HOME}:/var/lib/grafana/plugins
+      - ${GRAFANA_HOME}/grafana.ini:/etc/grafana/grafana.ini
     networks:
       - blueberry
     depends_on:
