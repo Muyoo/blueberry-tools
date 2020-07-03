@@ -63,7 +63,6 @@ while true; do
     fi
 done
 info ${MYSQL_ROOT_PASSWORD}
-docker exec -it ${MYSQL_CONTAINER_NAME} mysql -hlocalhost -uroot -p${MYSQL_ROOT_PASSWORD} -e "CREATE DATABASE ${GRAFANA_DATABASE}"
 
 info "Adjust ${TIMESCALEDB_CONTAINER_NAME} logging configs"
 
@@ -104,4 +103,8 @@ echo "host    all             all             0.0.0.0/0            md5" >> ${PG_
 info "Stop ${MYSQL_CONTAINER_NAME} ${TIMESCALEDB_CONTAINER_NAME} ${GRAFANA_CONTAINER_NAME}"
 ./docker-compose-wrapper.sh stop
 
-info "All Done"
+info "Completed initial. "
+info "You may try to execute commands below to start components: "
+info "    ./docker-compose-wrapper.sh start"
+info '    docker exec -it ${MYSQL_CONTAINER_NAME} mysql -hlocalhost -uroot -p${MYSQL_ROOT_PASSWORD} -e "CREATE DATABASE ${GRAFANA_DATABASE}"'
+info "    ./docker-compose-wrapper.sh start"
