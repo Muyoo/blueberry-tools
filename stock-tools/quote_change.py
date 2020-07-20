@@ -193,7 +193,6 @@ def pick_up_stocks(records_dic, filtered_change_filename):
         if code not in filtered_codes_set:
             continue
 
-
         last_n_days = records[-2:]
         print('candidate: ', code, last_n_days)
         pre_pct_change, _ = last_n_days[0]
