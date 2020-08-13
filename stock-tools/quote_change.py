@@ -4,6 +4,9 @@ import psycopg2 as pg
 import json
 import pdb
 import sys
+import time
+import requests
+import re
 
 STOCK_LIST_SQL = '''
     SELECT code, name FROM stock_code 
@@ -19,9 +22,10 @@ CHANGE_SQL_FMT = '''
         AND metric = 'pct_chg' AND tag_stock_code(tags) = '%s'
     ORDER BY "day" ASC
 '''
-
-PCT_CHANGE_THRESHOLD = 9.8
-PRICE_THRESHOLD = 10.0
+PCT_CHANGE_THRESHOLD = 9.0
+PRICE_THRESHOLD = 40.0
+PROBABILITY_THRESHOLD = 0.9
+STATISTIC_BASIC_COUNT = 15
 
 
 def load_from_csv(filename):
@@ -109,66 +113,66 @@ def d3_d4_change(filename, output_filename):
 # 3日交易
 # 分母：涨停日 D，D-1 涨幅 (0, 0.1)，D+1 涨跌幅 (-0.1, 0.1)
 # 分子：涨停日 D，D-1 涨幅 (0, 0.1)，D+1 涨幅 (0, 0.1)
-def d3_d4_change_from_db():
-    conn = pg.connect('dbname=blueberry user=postgres password=123456')
-    cursor = conn.cursor()
+# def d3_d4_change_from_db():
+#     conn = pg.connect('dbname=blueberry user=postgres password=123456')
+#     cursor = conn.cursor()
 
-    cursor.execute(STOCK_LIST_SQL)
-    stats_dic = {}
-    stock_stats_list = []
-    for stock_info in cursor.fetchall():
-        code, name = stock_info
-        change_sql = CHANGE_SQL_FMT % code
-        cursor.execute(change_sql)
+#     cursor.execute(STOCK_LIST_SQL)
+#     stats_dic = {}
+#     stock_stats_list = []
+#     for stock_info in cursor.fetchall():
+#         code, name = stock_info
+#         change_sql = CHANGE_SQL_FMT % code
+#         cursor.execute(change_sql)
 
-        key = '%s-%s' % stock_info
-        stats_dic[key] = {'total': 0, 'd_3': 0, 'd_4': 0}
+#         key = '%s-%s' % stock_info
+#         stats_dic[key] = {'total': 0, 'd_3': 0, 'd_4': 0}
 
-        change_value_list = cursor.fetchall()
-        length = len(change_value_list)
-        i = 0
-        for record in change_value_list:
-            day, change = record
-            if change < 9.9:
-                i += 1
-                continue
+#         change_value_list = cursor.fetchall()
+#         length = len(change_value_list)
+#         i = 0
+#         for record in change_value_list:
+#             day, change = record
+#             if change < 9.9:
+#                 i += 1
+#                 continue
 
-            pre_day, pre_change = change_value_list[i - 1]
-            if pre_change <= 0:
-                i += 1
-                continue
+#             pre_day, pre_change = change_value_list[i - 1]
+#             if pre_change <= 0:
+#                 i += 1
+#                 continue
 
-            stats_dic[key]['total'] += 1
-            if i + 1 < length:
-                d_3_day, d_3_change = change_value_list[i+1]
-                if d_3_change > 0:
-                    stats_dic[key]['d_3'] += 1
-            else:
-                break
+#             stats_dic[key]['total'] += 1
+#             if i + 1 < length:
+#                 d_3_day, d_3_change = change_value_list[i+1]
+#                 if d_3_change > 0:
+#                     stats_dic[key]['d_3'] += 1
+#             else:
+#                 break
 
-            if i + 2 < length:
-                d_4_day, d_4_change = change_value_list[i+2]
-                if d_4_change > 0:
-                    stats_dic[key]['d_4'] += 1
-            else:
-                break
+#             if i + 2 < length:
+#                 d_4_day, d_4_change = change_value_list[i+2]
+#                 if d_4_change > 0:
+#                     stats_dic[key]['d_4'] += 1
+#             else:
+#                 break
 
-            i += 1
+#             i += 1
 
-    cursor.close()
-    conn.close()
+#     cursor.close()
+#     conn.close()
 
     # print(json.dumps(stats_dic))
 
-    total = 0
-    d_3 = 0
-    d_4 = 0
-    for key, stats in stats_dic.items():
-        total += stats['total']
-        d_3 += stats['d_3']
-        d_4 += stats['d_4']
+    # total = 0
+    # d_3 = 0
+    # d_4 = 0
+    # for key, stats in stats_dic.items():
+    #     total += stats['total']
+    #     d_3 += stats['d_3']
+    #     d_4 += stats['d_4']
 
-    print(total, d_3, d_4)
+    # print(total, d_3, d_4)
 
 # From 2000-01-01 to 2020-07-10: Total = 55869, d_3 = 37984, d_4 = 30125
 
@@ -179,7 +183,7 @@ def filter_change_stocks(pct_chg_file, output_filename):
         for line in reader:
             items = line.strip().split()
             code, probability, total, d3, d4 = items
-            if float(probability) > 0.9 and int(total) >= 20:
+            if float(probability) > PROBABILITY_THRESHOLD and int(total) >= STATISTIC_BASIC_COUNT:
                 writer.write('%s\n' % code)
     writer.close()
 
@@ -194,7 +198,7 @@ def pick_up_stocks(records_dic, filtered_change_filename):
             continue
 
         last_n_days = records[-2:]
-        print('candidate: ', code, last_n_days)
+        print('\t', code, last_n_days)
         pre_pct_change, _ = last_n_days[0]
         pct_change, open_price = last_n_days[1]
         if pre_pct_change > 0.0 and pct_change >= PCT_CHANGE_THRESHOLD:
@@ -205,9 +209,39 @@ def pick_up_stocks(records_dic, filtered_change_filename):
 
 
 output_filename = './pct_chg_sorted.stats'
-pct_change_dic = d3_d4_change(sys.argv[1], output_filename)
 filtered_change_filename = './filtered_change.stats'
-filter_change_stocks(output_filename, filtered_change_filename)
 
-pick_up_stocks(pct_change_dic, filtered_change_filename)
-# candidates = [code.strip() for code in open(filter_change_stocks, 'r')]
+def run_train():
+    pct_change_dic = d3_d4_change(sys.argv[1], output_filename)
+    filter_change_stocks(output_filename, filtered_change_filename)
+
+    pick_up_stocks(pct_change_dic, filtered_change_filename)
+    # candidates = [code.strip() for code in open(filter_change_stocks, 'r')]
+
+def run_monitor():
+    regx_pattern = re.compile('"(.*)"')
+    url_fmt = 'http://hq.sinajs.cn/list=%s'
+    candidates = set([])
+    with open(filtered_change_filename, 'r') as reader:
+        for line in reader:
+            code, exchange = line.strip().split('.')
+            candidates.add('%s%s' % (exchange.lower(), code))
+
+    while True:
+        print('Next Round')
+        for stock in candidates:
+            stock_url = url_fmt % stock
+            data = requests.get(stock_url).text.strip()
+            data = regx_pattern.search(data).groups()[0]
+
+            name, open_price, pre_close_price, current_price = data.split(',')[:4]
+            pre_change = (float(pre_close_price) - float(open_price)) / float(pre_close_price)
+            if pre_change > 0:
+                current_change = 100 * (float(current_price) - float(open_price)) / float(open_price)
+                if current_change > 5:
+                    print(name, stock)
+
+        time.sleep(5)
+
+if __name__ == '__main__':
+    run_monitor()
