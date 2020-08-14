@@ -24,7 +24,7 @@ CHANGE_SQL_FMT = '''
 '''
 PCT_CHANGE_THRESHOLD = 9.0
 PRICE_THRESHOLD = 40.0
-PROBABILITY_THRESHOLD = 0.9
+PROBABILITY_THRESHOLD = 0.85
 STATISTIC_BASIC_COUNT = 15
 
 
@@ -235,6 +235,9 @@ def run_monitor():
             data = regx_pattern.search(data).groups()[0]
 
             name, open_price, pre_close_price, current_price = data.split(',')[:4]
+            if float(pre_close_price) <= 0 or float(open_price) <= 0:
+                continue
+
             pre_change = (float(pre_close_price) - float(open_price)) / float(pre_close_price)
             if pre_change > 0:
                 current_change = 100 * (float(current_price) - float(open_price)) / float(open_price)
