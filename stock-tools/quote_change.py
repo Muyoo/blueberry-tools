@@ -7,6 +7,7 @@ import sys
 import time
 import requests
 import re
+from datetime import datetime
 
 STOCK_LIST_SQL = '''
     SELECT code, name FROM stock_code 
@@ -211,8 +212,8 @@ def pick_up_stocks(records_dic, filtered_change_filename):
 output_filename = './pct_chg_sorted.stats'
 filtered_change_filename = './filtered_change.stats'
 
-def run_train():
-    pct_change_dic = d3_d4_change(sys.argv[1], output_filename)
+def run_train(kdata_filename):
+    pct_change_dic = d3_d4_change(kdata_filename, output_filename)
     filter_change_stocks(output_filename, filtered_change_filename)
 
     pick_up_stocks(pct_change_dic, filtered_change_filename)
@@ -228,7 +229,11 @@ def run_monitor():
             candidates.add('%s%s' % (exchange.lower(), code))
 
     while True:
-        print('Next Round')
+        hour = datetime.now().strftime('%H')
+        if hour > '16':
+            print('Marcket is closed. Exit.')
+            break
+
         for stock in candidates:
             stock_url = url_fmt % stock
             data = requests.get(stock_url).text.strip()
@@ -242,9 +247,19 @@ def run_monitor():
             if pre_change > 0:
                 current_change = 100 * (float(current_price) - float(open_price)) / float(open_price)
                 if current_change > 5:
-                    print(name, stock)
+                    print(name, stock, current_price, current_change)
 
         time.sleep(5)
 
 if __name__ == '__main__':
-    run_monitor()
+    if len(sys.argv) < 2:
+        print('Usage: \n\t1. quote_change.py train k-data.csv\n\t2. quote_change.py monitor')
+        exit(1)
+
+    mode = sys.argv[1]
+    if mode == 'train':
+        run_train(sys.argv[2])
+    elif mode == 'monitor':
+        run_monitor()
+    else:
+        print('Usage: \n\t1. quote_change.py train k-data.csv\n\t2. quote_change.py monitor')
