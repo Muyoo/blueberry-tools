@@ -62,7 +62,8 @@ def d3_d4_change(filename, output_filename):
     records_dic = load_from_csv(filename)
     values_list = []
     for code, records in records_dic.items():
-        if code.startswith('68') or (not code.startswith('6') and not code.startswith('00')):
+        valid_stock_code = (code.startswith('6') and not code.startswith('68')) or code.startswith('00') #or code.startswith('30')
+        if not valid_stock_code:
             continue
 
         total = 0
@@ -205,12 +206,13 @@ def pick_up_stocks(records_dic, filtered_change_filename):
         if pre_pct_change > 0.0 and pct_change >= PCT_CHANGE_THRESHOLD:
             if open_price <= PRICE_THRESHOLD:
                 writer.write('%s\n' % code)
-    
+
     writer.close()
 
 
 output_filename = './pct_chg_sorted.stats'
 filtered_change_filename = './filtered_change.stats'
+
 
 def run_train(kdata_filename):
     pct_change_dic = d3_d4_change(kdata_filename, output_filename)
@@ -218,6 +220,7 @@ def run_train(kdata_filename):
 
     pick_up_stocks(pct_change_dic, filtered_change_filename)
     # candidates = [code.strip() for code in open(filter_change_stocks, 'r')]
+
 
 def run_monitor():
     regx_pattern = re.compile('"(.*)"')
@@ -239,21 +242,26 @@ def run_monitor():
             data = requests.get(stock_url).text.strip()
             data = regx_pattern.search(data).groups()[0]
 
-            name, open_price, pre_close_price, current_price = data.split(',')[:4]
+            name, open_price, pre_close_price, current_price = data.split(',')[
+                :4]
             if float(pre_close_price) <= 0 or float(open_price) <= 0:
                 continue
 
-            pre_change = (float(pre_close_price) - float(open_price)) / float(pre_close_price)
+            pre_change = (float(pre_close_price) -
+                          float(open_price)) / float(pre_close_price)
             if pre_change > 0:
-                current_change = 100 * (float(current_price) - float(open_price)) / float(open_price)
-                if current_change > 5:
+                current_change = 100 * \
+                    (float(current_price) - float(open_price)) / float(open_price)
+                if current_change > 7:
                     print(name, stock, current_price, current_change)
 
         time.sleep(5)
 
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print('Usage: \n\t1. quote_change.py train k-data.csv\n\t2. quote_change.py monitor')
+        print(
+            'Usage: \n\t1. quote_change.py train k-data.csv\n\t2. quote_change.py monitor')
         exit(1)
 
     mode = sys.argv[1]
@@ -262,4 +270,5 @@ if __name__ == '__main__':
     elif mode == 'monitor':
         run_monitor()
     else:
-        print('Usage: \n\t1. quote_change.py train k-data.csv\n\t2. quote_change.py monitor')
+        print(
+            'Usage: \n\t1. quote_change.py train k-data.csv\n\t2. quote_change.py monitor')
